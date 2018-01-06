@@ -83,7 +83,7 @@ func TestPluginEmptyRootContext(t *testing.T) {
 
 func TestPluginHugetlbfs(t *testing.T) {
 	doTestPlugin(t, pluginTestConfig{
-		medium:                        v1.StorageMediumHugepages,
+		medium:                        v1.StorageMediumHugePages,
 		expectedSetupMounts:           1,
 		expectedTeardownMounts:        0,
 		shouldBeMountedBeforeTeardown: true,
@@ -216,7 +216,7 @@ func doTestPlugin(t *testing.T, config pluginTestConfig) {
 	if _, err := os.Stat(volPath); err == nil {
 		t.Errorf("TearDown() failed, volume path still exists: %s", volPath)
 	} else if !os.IsNotExist(err) {
-		t.Errorf("SetUp() failed: %v", err)
+		t.Errorf("TearDown() failed: %v", err)
 	}
 
 	// Check the number of physicalMounter calls during tardown
@@ -323,7 +323,7 @@ func TestGetHugePagesMountOptions(t *testing.T) {
 				},
 			},
 			shouldFail:     false,
-			expectedResult: "pageSize=2Mi",
+			expectedResult: "pagesize=2Mi",
 		},
 		"testWithProperValuesAndDifferentPageSize": {
 			pod: &v1.Pod{
@@ -347,7 +347,7 @@ func TestGetHugePagesMountOptions(t *testing.T) {
 				},
 			},
 			shouldFail:     false,
-			expectedResult: "pageSize=1Gi",
+			expectedResult: "pagesize=1Gi",
 		},
 		"InitContainerAndContainerHasProperValues": {
 			pod: &v1.Pod{
@@ -371,7 +371,7 @@ func TestGetHugePagesMountOptions(t *testing.T) {
 				},
 			},
 			shouldFail:     false,
-			expectedResult: "pageSize=1Gi",
+			expectedResult: "pagesize=1Gi",
 		},
 		"InitContainerAndContainerHasDifferentPageSizes": {
 			pod: &v1.Pod{

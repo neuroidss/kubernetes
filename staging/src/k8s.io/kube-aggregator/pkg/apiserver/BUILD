@@ -12,7 +12,8 @@ go_test(
         "handler_apis_test.go",
         "handler_proxy_test.go",
     ],
-    library = ":go_default_library",
+    embed = [":go_default_library"],
+    importpath = "k8s.io/kube-aggregator/pkg/apiserver",
     deps = [
         "//vendor/golang.org/x/net/websocket:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/equality:go_default_library",
@@ -37,6 +38,7 @@ go_library(
         "handler_proxy.go",
         "resolvers.go",
     ],
+    importpath = "k8s.io/kube-aggregator/pkg/apiserver",
     deps = [
         "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",

@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	v1helper "k8s.io/kubernetes/pkg/api/v1/helper"
+	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/util/mount"
 	stringsutil "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/volume"
@@ -54,7 +54,8 @@ type emptyDirPlugin struct {
 var _ volume.VolumePlugin = &emptyDirPlugin{}
 
 const (
-	emptyDirPluginName = "kubernetes.io/empty-dir"
+	emptyDirPluginName           = "kubernetes.io/empty-dir"
+	hugePagesPageSizeMountOption = "pagesize"
 )
 
 func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
@@ -226,7 +227,7 @@ func (ed *emptyDir) SetUpAt(dir string, fsGroup *int64) error {
 		err = ed.setupDir(dir)
 	case v1.StorageMediumMemory:
 		err = ed.setupTmpfs(dir)
-	case v1.StorageMediumHugepages:
+	case v1.StorageMediumHugePages:
 		err = ed.setupHugepages(dir)
 	default:
 		err = fmt.Errorf("unknown storage medium %q", ed.medium)
@@ -321,7 +322,7 @@ func getPageSizeMountOptionFromPod(pod *v1.Pod) (string, error) {
 		return "", fmt.Errorf("hugePages storage requested, but there is no resource request for huge pages.")
 	}
 
-	return fmt.Sprintf("pageSize=%s", pageSize.String()), nil
+	return fmt.Sprintf("%s=%s", hugePagesPageSizeMountOption, pageSize.String()), nil
 
 }
 
@@ -391,7 +392,7 @@ func (ed *emptyDir) TearDownAt(dir string) error {
 			ed.medium = v1.StorageMediumMemory
 			return ed.teardownTmpfsOrHugetlbfs(dir)
 		} else if medium == mediumHugepages {
-			ed.medium = v1.StorageMediumHugepages
+			ed.medium = v1.StorageMediumHugePages
 			return ed.teardownTmpfsOrHugetlbfs(dir)
 		}
 	}

@@ -9,19 +9,16 @@ load("//pkg/version:def.bzl", "version_x_defs")
 
 go_binary(
     name = "kube-apiserver",
-    gc_linkopts = [
-        "-linkmode",
-        "external",
-        "-extldflags",
-        "-static",
-    ],
-    library = ":go_default_library",
+    embed = [":go_default_library"],
+    importpath = "k8s.io/kubernetes/cmd/kube-apiserver",
+    pure = "on",
     x_defs = version_x_defs(),
 )
 
 go_library(
     name = "go_default_library",
     srcs = ["apiserver.go"],
+    importpath = "k8s.io/kubernetes/cmd/kube-apiserver",
     deps = [
         "//cmd/kube-apiserver/app:go_default_library",
         "//cmd/kube-apiserver/app/options:go_default_library",

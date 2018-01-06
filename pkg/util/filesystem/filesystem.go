@@ -31,6 +31,7 @@ type Filesystem interface {
 	MkdirAll(path string, perm os.FileMode) error
 	Chtimes(name string, atime time.Time, mtime time.Time) error
 	RemoveAll(path string) error
+	Remove(name string) error
 
 	// from "io/ioutil"
 	ReadFile(filename string) ([]byte, error)
@@ -45,5 +46,6 @@ type File interface {
 	// for now, the only os.File methods used are those below, add more as necessary
 	Name() string
 	Write(b []byte) (n int, err error)
+	Sync() error
 	Close() error
 }

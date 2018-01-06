@@ -628,6 +628,7 @@ CONVERSION_DIRS := $(shell                                              \
 )
 
 CONVERSION_FILES := $(addsuffix /$(CONVERSION_FILENAME), $(CONVERSION_DIRS))
+CONVERSION_EXTRA_PEER_DIRS := k8s.io/kubernetes/pkg/apis/core,k8s.io/kubernetes/pkg/apis/core/v1,k8s.io/api/core/v1
 
 # Shell function for reuse in rules.
 RUN_GEN_CONVERSION =                                                         \
@@ -638,6 +639,7 @@ RUN_GEN_CONVERSION =                                                         \
                 echo "DBG: running $(CONVERSION_GEN) for $$pkgs";            \
             fi;                                                              \
             ./hack/run-in-gopath.sh $(CONVERSION_GEN)                        \
+                --extra-peer-dirs $(CONVERSION_EXTRA_PEER_DIRS)              \
                 --v $(KUBE_VERBOSE)                                          \
                 --logtostderr                                                \
                 -i "$$pkgs"                                                  \
@@ -685,7 +687,8 @@ $(foreach dir, $(CONVERSION_DIRS),  \
     $(META_DIR)/$(dir)/$(CONVERSIONS_META)):
 	TAGS=$$(grep --color=never -h '^// *+k8s:conversion-gen=' $</*.go   \
 	    | cut -f2- -d=                                                  \
-	    | sed 's|$(PRJ_SRC_PATH)/||');                                  \
+	    | sed 's|$(PRJ_SRC_PATH)/||'                                    \
+	    | sed 's|^k8s.io/|vendor/k8s.io/|');                            \
 	mkdir -p $(@D);                                                     \
 	echo "conversions__$< := $$(echo $${TAGS})" >$@.tmp;                \
 	if ! cmp -s $@.tmp $@; then                                         \

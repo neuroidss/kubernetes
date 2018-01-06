@@ -43,6 +43,8 @@ var (
 		"node.session.auth.password",
 		"node.session.auth.username_in",
 		"node.session.auth.password_in"}
+	ifaceTransportNameRe = regexp.MustCompile(`iface.transport_name = (.*)\n`)
+	ifaceRe              = regexp.MustCompile(`.+/iface-([^/]+)/.+`)
 )
 
 func updateISCSIDiscoverydb(b iscsiDiskMounter, tp string) error {
@@ -277,6 +279,12 @@ func (util *ISCSIUtil) AttachDisk(b iscsiDiskMounter) (string, error) {
 			lastErr = fmt.Errorf("iscsi: failed to attach disk: Error: %s (%v)", string(out), err)
 			continue
 		}
+		// in case of node failure/restart, explicitly set to manual login so it doesn't hang on boot
+		out, err = b.exec.Run("iscsiadm", "-m", "node", "-p", tp, "-T", b.Iqn, "-o", "update", "node.startup", "-v", "manual")
+		if err != nil {
+			// don't fail if we can't set startup mode, but log warning so there is a clue
+			glog.Warningf("Warning: Failed to set iSCSI login mode to manual. Error: %v", err)
+		}
 		if exist := waitForPathToExist(&devicePath, 10, iscsiTransport); !exist {
 			glog.Errorf("Could not attach disk: Timeout after 10s")
 			// update last error
@@ -292,6 +300,9 @@ func (util *ISCSIUtil) AttachDisk(b iscsiDiskMounter) (string, error) {
 		b.exec.Run("iscsiadm", "-m", "iface", "-I", b.Iface, "-o", "delete")
 		glog.Errorf("iscsi: failed to get any path for iscsi disk, last err seen:\n%v", lastErr)
 		return "", fmt.Errorf("failed to get any path for iscsi disk, last err seen:\n%v", lastErr)
+	}
+	if lastErr != nil {
+		glog.Errorf("iscsi: last error occurred during iscsi init:\n%v", lastErr)
 	}
 
 	//Make sure we use a valid devicepath to find mpio device.
@@ -426,9 +437,7 @@ func (util *ISCSIUtil) DetachDisk(c iscsiDiskUnmounter, mntPath string) error {
 }
 
 func extractTransportname(ifaceOutput string) (iscsiTransport string) {
-	re := regexp.MustCompile(`iface.transport_name = (.*)\n`)
-
-	rexOutput := re.FindStringSubmatch(ifaceOutput)
+	rexOutput := ifaceTransportNameRe.FindStringSubmatch(ifaceOutput)
 	if rexOutput == nil {
 		return ""
 	}
@@ -457,9 +466,7 @@ func extractDeviceAndPrefix(mntPath string) (string, string, error) {
 }
 
 func extractIface(mntPath string) (string, bool) {
-	re := regexp.MustCompile(`.+/iface-([^/]+)/.+`)
-
-	reOutput := re.FindStringSubmatch(mntPath)
+	reOutput := ifaceRe.FindStringSubmatch(mntPath)
 	if reOutput != nil {
 		return reOutput[1], true
 	}

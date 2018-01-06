@@ -12,6 +12,7 @@ go_library(
         "doc.go",
         "local.go",
     ],
+    importpath = "k8s.io/kubernetes/pkg/volume/local",
     deps = [
         "//pkg/kubelet/events:go_default_library",
         "//pkg/util/keymutex:go_default_library",
@@ -32,7 +33,8 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = ["local_test.go"],
-    library = ":go_default_library",
+    embed = [":go_default_library"],
+    importpath = "k8s.io/kubernetes/pkg/volume/local",
     deps = [
         "//pkg/volume:go_default_library",
         "//pkg/volume/testing:go_default_library",

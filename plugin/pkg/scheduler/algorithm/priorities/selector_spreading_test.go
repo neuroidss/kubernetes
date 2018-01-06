@@ -338,17 +338,26 @@ func TestSelectorSpreadPriority(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(test.pods, nil)
+	for i, test := range tests {
+		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(test.pods, makeNodeList(test.nodes))
 		selectorSpread := SelectorSpread{
 			serviceLister:     schedulertesting.FakeServiceLister(test.services),
 			controllerLister:  schedulertesting.FakeControllerLister(test.rcs),
 			replicaSetLister:  schedulertesting.FakeReplicaSetLister(test.rss),
 			statefulSetLister: schedulertesting.FakeStatefulSetLister(test.sss),
 		}
-		list, err := selectorSpread.CalculateSpreadPriority(test.pod, nodeNameToInfo, makeNodeList(test.nodes))
+
+		mataDataProducer := NewPriorityMetadataFactory(
+			schedulertesting.FakeServiceLister(test.services),
+			schedulertesting.FakeControllerLister(test.rcs),
+			schedulertesting.FakeReplicaSetLister(test.rss),
+			schedulertesting.FakeStatefulSetLister(test.sss))
+		mataData := mataDataProducer(test.pod, nodeNameToInfo)
+
+		ttp := priorityFunction(selectorSpread.CalculateSpreadPriorityMap, selectorSpread.CalculateSpreadPriorityReduce, mataData)
+		list, err := ttp(test.pod, nodeNameToInfo, makeNodeList(test.nodes))
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v index : %d\n", err, i)
 		}
 		if !reflect.DeepEqual(test.expectedList, list) {
 			t.Errorf("%s: expected %#v, got %#v", test.test, test.expectedList, list)
@@ -444,6 +453,23 @@ func TestZoneSelectorSpreadPriority(t *testing.T) {
 				{Host: nodeMachine3Zone3, Score: schedulerapi.MaxPriority},
 			},
 			test: "different services",
+		},
+		{
+			pod: buildPod("", labels1, nil),
+			pods: []*v1.Pod{
+				buildPod(nodeMachine1Zone1, labels2, nil),
+				buildPod(nodeMachine1Zone2, labels2, nil),
+			},
+			services: []*v1.Service{{Spec: v1.ServiceSpec{Selector: labels1}}},
+			expectedList: []schedulerapi.HostPriority{
+				{Host: nodeMachine1Zone1, Score: schedulerapi.MaxPriority},
+				{Host: nodeMachine1Zone2, Score: schedulerapi.MaxPriority},
+				{Host: nodeMachine2Zone2, Score: schedulerapi.MaxPriority},
+				{Host: nodeMachine1Zone3, Score: schedulerapi.MaxPriority},
+				{Host: nodeMachine2Zone3, Score: schedulerapi.MaxPriority},
+				{Host: nodeMachine3Zone3, Score: schedulerapi.MaxPriority},
+			},
+			test: "two pods, 0 matching",
 		},
 		{
 			pod: buildPod("", labels1, nil),
@@ -547,17 +573,25 @@ func TestZoneSelectorSpreadPriority(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(test.pods, nil)
+	for i, test := range tests {
+		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(test.pods, makeLabeledNodeList(labeledNodes))
 		selectorSpread := SelectorSpread{
 			serviceLister:     schedulertesting.FakeServiceLister(test.services),
 			controllerLister:  schedulertesting.FakeControllerLister(test.rcs),
 			replicaSetLister:  schedulertesting.FakeReplicaSetLister(test.rss),
 			statefulSetLister: schedulertesting.FakeStatefulSetLister(test.sss),
 		}
-		list, err := selectorSpread.CalculateSpreadPriority(test.pod, nodeNameToInfo, makeLabeledNodeList(labeledNodes))
+
+		mataDataProducer := NewPriorityMetadataFactory(
+			schedulertesting.FakeServiceLister(test.services),
+			schedulertesting.FakeControllerLister(test.rcs),
+			schedulertesting.FakeReplicaSetLister(test.rss),
+			schedulertesting.FakeStatefulSetLister(test.sss))
+		mataData := mataDataProducer(test.pod, nodeNameToInfo)
+		ttp := priorityFunction(selectorSpread.CalculateSpreadPriorityMap, selectorSpread.CalculateSpreadPriorityReduce, mataData)
+		list, err := ttp(test.pod, nodeNameToInfo, makeLabeledNodeList(labeledNodes))
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v index : %d", err, i)
 		}
 		// sort the two lists to avoid failures on account of different ordering
 		sort.Sort(test.expectedList)
@@ -723,19 +757,33 @@ func TestZoneSpreadPriority(t *testing.T) {
 			test: "service pod on non-zoned node",
 		},
 	}
+	// these local variables just make sure controllerLister\replicaSetLister\statefulSetLister not nil
+	// when construct mataDataProducer
+	sss := []*apps.StatefulSet{{Spec: apps.StatefulSetSpec{Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"foo": "bar"}}}}}
+	rcs := []*v1.ReplicationController{{Spec: v1.ReplicationControllerSpec{Selector: map[string]string{"foo": "bar"}}}}
+	rss := []*extensions.ReplicaSet{{Spec: extensions.ReplicaSetSpec{Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"foo": "bar"}}}}}
 
-	for _, test := range tests {
-		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(test.pods, nil)
+	for i, test := range tests {
+		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(test.pods, makeLabeledNodeList(test.nodes))
 		zoneSpread := ServiceAntiAffinity{podLister: schedulertesting.FakePodLister(test.pods), serviceLister: schedulertesting.FakeServiceLister(test.services), label: "zone"}
-		list, err := zoneSpread.CalculateAntiAffinityPriority(test.pod, nodeNameToInfo, makeLabeledNodeList(test.nodes))
+
+		mataDataProducer := NewPriorityMetadataFactory(
+			schedulertesting.FakeServiceLister(test.services),
+			schedulertesting.FakeControllerLister(rcs),
+			schedulertesting.FakeReplicaSetLister(rss),
+			schedulertesting.FakeStatefulSetLister(sss))
+		mataData := mataDataProducer(test.pod, nodeNameToInfo)
+		ttp := priorityFunction(zoneSpread.CalculateAntiAffinityPriorityMap, zoneSpread.CalculateAntiAffinityPriorityReduce, mataData)
+		list, err := ttp(test.pod, nodeNameToInfo, makeLabeledNodeList(test.nodes))
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v index : %d", err, i)
 		}
+
 		// sort the two lists to avoid failures on account of different ordering
 		sort.Sort(test.expectedList)
 		sort.Sort(list)
 		if !reflect.DeepEqual(test.expectedList, list) {
-			t.Errorf("%s: expected %#v, got %#v", test.test, test.expectedList, list)
+			t.Errorf("test index %d (%s): expected %#v, got %#v", i, test.test, test.expectedList, list)
 		}
 	}
 }

@@ -37,11 +37,11 @@ else
   readonly use_custom_instance_list=
 fi
 
-readonly master_ssh_supported_providers="gce aws"
-readonly node_ssh_supported_providers="gce gke aws"
-readonly gcloud_supported_providers="gce gke"
+readonly master_ssh_supported_providers="gce aws kubernetes-anywhere"
+readonly node_ssh_supported_providers="gce gke aws kubernetes-anywhere"
+readonly gcloud_supported_providers="gce gke kubernetes-anywhere"
 
-readonly master_logfiles="kube-apiserver kube-scheduler rescheduler kube-controller-manager etcd etcd-events glbc cluster-autoscaler kube-addon-manager fluentd"
+readonly master_logfiles="kube-apiserver kube-apiserver-audit kube-scheduler rescheduler kube-controller-manager etcd etcd-events glbc cluster-autoscaler kube-addon-manager fluentd"
 readonly node_logfiles="kube-proxy fluentd node-problem-detector"
 readonly node_systemd_services="node-problem-detector"
 readonly hollow_node_logfiles="kubelet-hollow-node-* kubeproxy-hollow-node-* npd-hollow-node-*"
@@ -50,15 +50,16 @@ readonly gce_logfiles="startupscript"
 readonly kern_logfile="kern"
 readonly initd_logfiles="docker"
 readonly supervisord_logfiles="kubelet supervisor/supervisord supervisor/kubelet-stdout supervisor/kubelet-stderr supervisor/docker-stdout supervisor/docker-stderr"
-readonly systemd_services="kubelet docker"
+readonly systemd_services="kubelet ${LOG_DUMP_SYSTEMD_SERVICES:-docker}"
 
 # Limit the number of concurrent node connections so that we don't run out of
 # file descriptors for large clusters.
 readonly max_scp_processes=25
 
+# TODO: Get rid of all the sourcing of bash dependencies eventually.
 function setup() {
+  KUBE_ROOT=$(dirname "${BASH_SOURCE}")/../..
   if [[ -z "${use_custom_instance_list}" ]]; then
-    KUBE_ROOT=$(dirname "${BASH_SOURCE}")/../..
     : ${KUBE_CONFIG_FILE:="config-test.sh"}
     echo "Sourcing kube-util.sh"
     source "${KUBE_ROOT}/cluster/kube-util.sh"
@@ -66,6 +67,11 @@ function setup() {
     detect-project 2>&1
   elif [[ "${KUBERNETES_PROVIDER}" == "gke" ]]; then
     echo "Using 'use_custom_instance_list' with gke, skipping check for LOG_DUMP_SSH_KEY and LOG_DUMP_SSH_USER"
+    # Source the below script for the ssh-to-node utility function.
+    # Hack to save and restore the value of the ZONE env as the script overwrites it.
+    local gke_zone="${ZONE:-}"
+    source "${KUBE_ROOT}/cluster/gce/util.sh"
+    ZONE="${gke_zone}"
   elif [[ -z "${LOG_DUMP_SSH_KEY:-}" ]]; then
     echo "LOG_DUMP_SSH_KEY not set, but required when using log_dump_custom_get_instances"
     exit 1
@@ -76,7 +82,7 @@ function setup() {
 }
 
 function log-dump-ssh() {
-  if [[ -z "${use_custom_instance_list}" ]]; then
+  if [[ "${gcloud_supported_providers}" =~ "${KUBERNETES_PROVIDER}" ]]; then
     ssh-to-node "$@"
     return
   fi
@@ -135,7 +141,7 @@ function save-logs() {
       fi
     else
       case "${KUBERNETES_PROVIDER}" in
-        gce|gke)
+        gce|gke|kubernetes-anywhere)
           files="${files} ${gce_logfiles}"
           ;;
         aws)
@@ -213,7 +219,7 @@ function dump_masters() {
 }
 
 function dump_nodes() {
-  local node_names
+  local node_names=()
   if [[ -n "${1:-}" ]]; then
     echo "Dumping logs for nodes provided as args to dump_nodes() function"
     node_names=( "$@" )
@@ -226,7 +232,9 @@ function dump_nodes() {
   else
     echo "Detecting nodes in the cluster"
     detect-node-names &> /dev/null
-    node_names=( "${NODE_NAMES[@]}" )
+    if [[ -n "${NODE_NAMES:-}" ]]; then
+      node_names=( "${NODE_NAMES[@]}" )
+    fi
   fi
 
   if [[ "${#node_names[@]}" == 0 ]]; then
@@ -277,7 +285,7 @@ function dump_nodes_with_logexporter() {
   echo "Detecting nodes in the cluster"
   detect-node-names &> /dev/null
 
-  if [[ "${#NODE_NAMES[@]}" == 0 ]]; then
+  if [[ -z "${NODE_NAMES:-}" ]]; then
     echo "No nodes found!"
     return
   fi

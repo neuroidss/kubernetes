@@ -175,42 +175,6 @@ func TestComparingHostURLs(t *testing.T) {
 	}
 }
 
-func TestScrubDNS(t *testing.T) {
-	tcs := []struct {
-		nameserversIn  []string
-		searchesIn     []string
-		nameserversOut []string
-		searchesOut    []string
-	}{
-		{
-			nameserversIn:  []string{"1.2.3.4", "5.6.7.8"},
-			nameserversOut: []string{"1.2.3.4", "5.6.7.8"},
-		},
-		{
-			searchesIn:  []string{"c.prj.internal.", "12345678910.google.internal.", "google.internal."},
-			searchesOut: []string{"c.prj.internal.", "google.internal."},
-		},
-		{
-			searchesIn:  []string{"c.prj.internal.", "12345678910.google.internal.", "zone.c.prj.internal.", "google.internal."},
-			searchesOut: []string{"c.prj.internal.", "zone.c.prj.internal.", "google.internal."},
-		},
-		{
-			searchesIn:  []string{"c.prj.internal.", "12345678910.google.internal.", "zone.c.prj.internal.", "google.internal.", "unexpected"},
-			searchesOut: []string{"c.prj.internal.", "zone.c.prj.internal.", "google.internal.", "unexpected"},
-		},
-	}
-	gce := &GCECloud{}
-	for i := range tcs {
-		n, s := gce.ScrubDNS(tcs[i].nameserversIn, tcs[i].searchesIn)
-		if !reflect.DeepEqual(n, tcs[i].nameserversOut) {
-			t.Errorf("Expected %v, got %v", tcs[i].nameserversOut, n)
-		}
-		if !reflect.DeepEqual(s, tcs[i].searchesOut) {
-			t.Errorf("Expected %v, got %v", tcs[i].searchesOut, s)
-		}
-	}
-}
-
 func TestSplitProviderID(t *testing.T) {
 	providers := []struct {
 		providerID string
@@ -625,4 +589,64 @@ func TestNewAlphaFeatureGate(t *testing.T) {
 	}
 	delete(knownAlphaFeatures, "foo")
 	delete(knownAlphaFeatures, "bar")
+}
+
+func TestGetRegionInURL(t *testing.T) {
+	cases := map[string]string{
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/subnetworks/a": "us-central1",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-west2/subnetworks/b":    "us-west2",
+		"projects/my-project/regions/asia-central1/subnetworks/c":                                     "asia-central1",
+		"regions/europe-north2":                                                                       "europe-north2",
+		"my-url":                                                                                      "",
+		"":                                                                                            "",
+	}
+	for input, output := range cases {
+		result := getRegionInURL(input)
+		if result != output {
+			t.Errorf("Actual result %q does not match expected result %q for input: %q", result, output, input)
+		}
+	}
+}
+
+func TestFindSubnetForRegion(t *testing.T) {
+	s := []string{
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/subnetworks/default-38b01f54907a15a7",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-west1/subnetworks/default",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-east1/subnetworks/default-277eec3815f742b6",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-east4/subnetworks/default",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/asia-northeast1/subnetworks/default",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/asia-east1/subnetworks/default-8e020b4b8b244809",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/australia-southeast1/subnetworks/default",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/southamerica-east1/subnetworks/default",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/europe-west3/subnetworks/default",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/asia-southeast1/subnetworks/default",
+		"",
+	}
+	actual := findSubnetForRegion(s, "asia-east1")
+	expectedResult := "https://www.googleapis.com/compute/v1/projects/my-project/regions/asia-east1/subnetworks/default-8e020b4b8b244809"
+	if actual != expectedResult {
+		t.Errorf("Actual result %q does not match expected result %q", actual, expectedResult)
+	}
+
+	var nilSlice []string
+	res := findSubnetForRegion(nilSlice, "us-central1")
+	if res != "" {
+		t.Errorf("expected an empty result, got %v", res)
+	}
+}
+
+func TestLastComponent(t *testing.T) {
+	cases := map[string]string{
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/subnetworks/a": "a",
+		"https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/subnetworks/b": "b",
+		"projects/my-project/regions/us-central1/subnetworks/c":                                       "c",
+		"d": "d",
+		"":  "",
+	}
+	for input, output := range cases {
+		result := lastComponent(input)
+		if result != output {
+			t.Errorf("Actual result %q does not match expected result %q for input: %q", result, output, input)
+		}
+	}
 }

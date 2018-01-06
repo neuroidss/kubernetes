@@ -9,6 +9,7 @@ load(
 go_library(
     name = "go_default_library",
     srcs = ["token.go"],
+    importpath = "k8s.io/kubernetes/cmd/kubeadm/app/discovery/token",
     deps = [
         "//cmd/kubeadm/app/constants:go_default_library",
         "//cmd/kubeadm/app/util/kubeconfig:go_default_library",
@@ -40,7 +41,8 @@ filegroup(
 go_test(
     name = "go_default_test",
     srcs = ["token_test.go"],
-    library = ":go_default_library",
+    embed = [":go_default_library"],
+    importpath = "k8s.io/kubernetes/cmd/kubeadm/app/discovery/token",
     deps = [
         "//cmd/kubeadm/app/util/kubeconfig:go_default_library",
         "//vendor/k8s.io/client-go/tools/clientcmd/api:go_default_library",

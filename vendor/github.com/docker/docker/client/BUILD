@@ -116,17 +116,27 @@ go_library(
         "volume_prune.go",
         "volume_remove.go",
     ] + select({
-        "@io_bazel_rules_go//go/platform:darwin_amd64": [
+        "@io_bazel_rules_go//go/platform:darwin": [
             "client_unix.go",
         ],
-        "@io_bazel_rules_go//go/platform:linux_amd64": [
+        "@io_bazel_rules_go//go/platform:freebsd": [
             "client_unix.go",
         ],
-        "@io_bazel_rules_go//go/platform:windows_amd64": [
+        "@io_bazel_rules_go//go/platform:linux": [
+            "client_unix.go",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "client_unix.go",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "client_unix.go",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
             "client_windows.go",
         ],
         "//conditions:default": [],
     }),
+    importpath = "github.com/docker/docker/client",
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/github.com/docker/distribution/reference:go_default_library",

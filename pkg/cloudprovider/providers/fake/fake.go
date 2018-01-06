@@ -17,7 +17,6 @@ limitations under the License.
 package fake
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -69,6 +68,7 @@ type FakeCloud struct {
 	Provider      string
 	addCallLock   sync.Mutex
 	cloudprovider.Zone
+	VolumeLabelMap map[string]map[string]string
 }
 
 type FakeRoute struct {
@@ -108,11 +108,6 @@ func (f *FakeCloud) ProviderName() string {
 		return defaultProviderName
 	}
 	return f.Provider
-}
-
-// ScrubDNS filters DNS settings for pods.
-func (f *FakeCloud) ScrubDNS(nameservers, searches []string) (nsOut, srchOut []string) {
-	return nameservers, searches
 }
 
 // HasClusterID returns true if the cluster has a clusterID
@@ -190,7 +185,7 @@ func (f *FakeCloud) EnsureLoadBalancerDeleted(clusterName string, service *v1.Se
 }
 
 func (f *FakeCloud) AddSSHKeyToAllInstances(user string, keyData []byte) error {
-	return errors.New("unimplemented")
+	return cloudprovider.NotImplemented
 }
 
 // Implementation of Instances.CurrentNodeName
@@ -321,4 +316,11 @@ func (f *FakeCloud) DeleteRoute(clusterName string, route *cloudprovider.Route) 
 	}
 	delete(f.RouteMap, name)
 	return nil
+}
+
+func (c *FakeCloud) GetLabelsForVolume(pv *v1.PersistentVolume) (map[string]string, error) {
+	if val, ok := c.VolumeLabelMap[pv.Name]; ok {
+		return val, nil
+	}
+	return nil, fmt.Errorf("label not found for volume")
 }
